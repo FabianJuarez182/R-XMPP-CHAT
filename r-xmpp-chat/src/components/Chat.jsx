@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { sendMessage, setPresenceOnline, setPresenceAway, getConnectionStatus } from '../services/xmppClient';
+import { sendMessage, setPresenceOnline, getConnectionStatus } from '../services/xmppClient';
 
 function Chat() {
   const [to, setTo] = useState('');
