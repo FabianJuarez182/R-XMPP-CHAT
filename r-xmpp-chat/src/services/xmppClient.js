@@ -4,6 +4,11 @@ import debug from '@xmpp/debug';
 
 let xmpp;
 let isOnline = false;
+let currentUser = null;
+let currentPresence = 'Available';
+let currentPresenceStatus = 'online';
+// Lista para manejar los listeners de mensajes
+let messageListeners = [];
 
 function initializeXMPP(username, password) {
   return new Promise((resolve, reject) => {
@@ -11,8 +16,8 @@ function initializeXMPP(username, password) {
       service: "ws://alumchat.lol:7070/ws/",
       domain: "alumchat.lol",
       resource: "example",
-      username: username,//"jua21440",
-      password: password,//"Redes-2024"
+      username: username,
+      password: password,
     });
 
     xmpp.on("error", (err) => {
@@ -28,6 +33,8 @@ function initializeXMPP(username, password) {
     xmpp.on("online", async (address) => {
       console.log(`Connected as ${address.toString()}`);
       isOnline = true;
+      currentUser = username; // Almacena el nombre de usuario
+
       await sendPresence("chat");
       resolve(); // Resuelve la promesa cuando la conexión es exitosa
     });
@@ -38,11 +45,82 @@ function initializeXMPP(username, password) {
     });
   });
 }
+
+// Función para obtener el usuario actual
+export function getCurrentUser() {
+  return currentUser;
+}
+
+// Función para hacer logout
+export async function logout() {
+  if (!isOnline) {
+    throw new Error("No se puede hacer logout: no estás online.");
+  }
+
+  try {
+    await xmpp.stop(); // Detiene la conexión XMPP
+    isOnline = false;
+    console.log('Logout exitoso.');
+  } catch (error) {
+    console.error('Error durante el logout:', error);
+    throw error;
+  }
+}
+
+// Maneja los mensajes entrantes
+function handleStanza(stanza) {
+  if (stanza.is('message') && stanza.attrs.type === 'chat') {
+    const from = stanza.attrs.from;
+    const body = stanza.getChildText('body');
+
+    if (body) {
+      const message = {
+        from,
+        body,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      // Llamar a todos los listeners registrados
+      messageListeners.forEach(listener => listener(message));
+    }
+  }
+}
+
+// Función para registrar listeners de mensajes
+export function onMessage(listener) {
+  messageListeners.push(listener);
+}
+
+// Función para enviar un mensaje a un usuario específico
+export async function getContacts() {
+  return new Promise((resolve, reject) => {
+    const rosterIq = xml(
+      'iq',
+      { type: 'get', id: 'roster1' },
+      xml('query', { xmlns: 'jabber:iq:roster' })
+    );
+
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('iq') && stanza.getChild('query')) {
+        const items = stanza.getChild('query').getChildren('item');
+        const contacts = items.map(item => ({
+          jid: item.attrs.jid,
+          name: item.attrs.name || item.attrs.jid
+        }));
+        resolve(contacts);
+      }
+    });
+
+    xmpp.send(rosterIq).catch((err) => {
+      console.error('Error al obtener los contactos:', err);
+      reject(err);
+    });
+  });
+}
+
 // Función para enviar un mensaje a un usuario específico
 export async function sendMessage(to, body) {
-  console.log('Intentando enviar mensaje...');
   if (!isOnline) {
-    console.error('No se puede enviar mensaje: no estás online.');
     throw new Error("No se puede enviar mensaje: no estás online.");
   }
 
@@ -60,6 +138,77 @@ export async function sendMessage(to, body) {
   }
 }
 
+// Función para escuchar actualizaciones de presencia
+export function listenForPresenceUpdates(callback) {
+  if (xmpp) {
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('presence')) {
+        const from = stanza.attrs.from;
+        const type = stanza.attrs.type;
+
+        if (type === 'unavailable') {
+          callback('offline', from);
+          currentPresenceStatus = 'offline';
+          return;
+        }
+
+        const show = stanza.getChild('show');
+        const status = show ? show.text() : 'online';
+        currentPresenceStatus = status;  // Almacena el estado actual
+        callback(status, from);
+      }
+    });
+  } else {
+    console.error('XMPP client is not connected');
+  }
+}
+
+// Función para obtener el estado de presencia actual
+export function getCurrentPresenceStatus() {
+  return currentPresenceStatus;
+}
+
+async function sendPresence(presence) {
+  if (!isOnline) {
+    console.error('La conexión aún no está establecida.');
+    return;
+  }
+
+  let show = '';
+  switch (presence) {
+    case 'Available':
+      show = ''; // Presencia estándar, sin estado específico
+      break;
+    case 'Away':
+      show = 'away';
+      break;
+    case 'Not Available':
+      show = 'xa'; // Estado "Not Available" (Extended Away)
+      break;
+    case 'Busy':
+      show = 'dnd'; // "Do Not Disturb" o "Busy"
+      break;
+    default:
+      show = '';
+      break;
+  }
+  try {
+    const presenceStanza = xml('presence', {}, show ? xml('show', {}, show) : null);
+    await xmpp.send(presenceStanza);
+    currentPresence = presence; // Actualiza el estado de presencia actual
+  } catch (error) {
+    console.error('Error al enviar la presencia:', error);
+  }
+}
+
+export function getPresence() {
+  return currentPresence;
+}
+
+export async function setPresence(presence) {
+  await sendPresence(presence);
+}
+
 // Función para registrar un nuevo usuario
 export async function signUp(username, fullName, email, password) {
   console.log(username,fullName,email,password);
@@ -69,7 +218,7 @@ export async function signUp(username, fullName, email, password) {
       domain: "alumchat.lol",
       resource: "example",
       credentials: async (auth) => {
-        return { username, password, mechanism: 'PLAIN' }; // Enviar username y password
+        return { username, password }; // Enviar username y password
       },
     });
 
@@ -130,36 +279,5 @@ export async function signUp(username, fullName, email, password) {
   });
 }
 
-
-
-// Función para modificar la presencia "online" sin enviar una nueva presencia
-export async function setPresenceOnline() {
-  if (!isOnline) {
-    throw new Error("No se puede cambiar la presencia: no estás online.");
-  }
-
-  try {
-    // Modificar la presencia localmente sin reenviar al servidor
-    await sendPresence("chat");
-    console.log("La presencia se ha cambiado a online localmente.");
-  } catch (error) {
-    console.error('Error al cambiar la presencia:', error);
-    throw error;
-  }
-}
-
-async function sendPresence(show) {
-  if (!isOnline) {
-    console.error('La conexión aún no está establecida.');
-    return;
-  }
-
-  const presence = xml('presence', {}, xml('show', {}, show));
-  await xmpp.send(presence);
-}
-
-export function getConnectionStatus() {
-  return isOnline;
-}
 
 export { initializeXMPP };

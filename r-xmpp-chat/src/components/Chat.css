@@ -1,0 +1,199 @@
+.chat-container {
+    width: 100vh; /* Ocupa el 90% del ancho de la pantalla */
+    height: 90vh; /* Ocupa el 85% de la altura de la pantalla */
+    background-color: white; /* Fondo blanco para el área de chat */
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: row;
+    padding: 20px; /* Padding para dar espacio dentro del contenedor */
+    box-sizing: border-box;
+    margin: auto; /* Centra el contenedor en la pantalla */
+  }
+
+  .sidebar {
+    width: 40%; /* Ancho de la barra lateral */
+    height: 95%;
+    padding: 10px;
+    background-color: #f1f1f1; /* Color de fondo de la barra lateral */
+    border-right: 1px solid #ccc; /* Línea divisoria */
+    overflow-y: auto; /* Para permitir el scroll si hay muchos contactos */
+    border-radius: 10px;
+  }
+  
+  .chat-area {
+    width: 70%; /* Ancho del área de chat */
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  
+  .message-area {
+    padding: 10px;
+    height: 70vh;
+    overflow-y: scroll;
+    display: flex;
+    flex-direction: column;
+    background-color: #e9e9e9;
+  }
+  
+  .message {
+    max-width: 60%;
+    margin: 5px 0;
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 14px;
+    position: relative;
+  }
+  
+  .message.sent {
+    align-self: flex-end;
+    background-color: #dcf8c6;
+    color: #000;
+  }
+  
+  .message.received {
+    align-self: flex-start;
+    background-color: #ffffff;
+    color: #000;
+  }
+  
+  .message-time {
+    font-size: 12px;
+    position: absolute;
+    bottom: 2px;
+    right: 5px;
+    color: #999;
+  }
+  
+  .input-area {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .input-area .input {
+    flex-grow: 1; /* El input toma todo el espacio disponible */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
+  .input-area .button {
+    padding: 10px 20px;
+    background-color: #87CEEB; /* Botón con el color celeste */
+    border: none;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+  }
+
+  .input-area .button:hover {
+    background-color: #00BFFF; /* Un azul más oscuro para hover */
+  }
+
+  /* Estilos para la lista de contactos */
+  .contact-list {
+    list-style-type: none;
+    padding: 0;
+  }
+
+  .contact-item {
+    padding: 10px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    border-radius: 5px;
+    background-color: #fff;
+    transition: background-color 0.3s;
+  }
+
+  .contact-item:hover {
+    background-color: #e0e0e0;
+  }
+
+  .contact-item.selected {
+    background-color: #87CEEB; /* Color celeste para el contacto seleccionado */
+    color: white;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #f1f1f1;
+    border-bottom: 1px solid #ccc;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: green;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-right: 10px;
+  }
+
+  .user-details {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .username {
+    font-weight: bold;
+    font-size: 16px; /* Tamaño del nombre */
+  }
+
+  .status {
+    color: green;
+    font-size: 12px; /* Tamaño del estado */
+  }
+
+  .logout-button {
+    background-color: #87CEEB; /* Cambiar el color a celeste */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 12px; /* Hacer el botón más pequeño */
+    margin-left: 8px;
+  }
+
+  .user-details {
+    margin-left: 10px;
+  }
+
+  .presence-select {
+    border: none;
+    background: none;
+    font-size: 12px; /* Reduce el tamaño de la fuente */
+    padding: 2px;    /* Reduce el padding para que sea más compacto */
+    margin-top: 5px;
+    width: 100px;    /* Define un ancho específico */
+  }
+  
+  
+  .logout-button {
+    background-color: #87CEEB; /* Color celeste */
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 14px;
+    margin-top: 10px;
+    border-radius: 5px;
+  }
