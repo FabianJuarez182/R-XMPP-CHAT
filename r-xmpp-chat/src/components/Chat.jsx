@@ -8,6 +8,8 @@ import {
   getPresence,
   setPresence,
   logout,
+  deleteUser,
+  addContact,
   getCurrentPresenceStatus,
   listenForPresenceUpdates,
   listenForContactsPresenceUpdates
@@ -21,6 +23,34 @@ function Chat() {
   const [contacts, setContacts] = useState([]); // Lista de contactos
   const [currentUser, setCurrentUser] = useState(null); // Almacena el nombre del usuario conectado
   const [currentPresence, setCurrentPresence] = useState('Available');
+  const [sharePresence, setSharePresence] = useState(true); // Por defecto, compartir estatus es verdadero
+
+    // Estado para el modal
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [newContact, setNewContact] = useState('');
+    const [newContactMessage, setNewContactMessage] = useState('');
+
+      // Mostrar el modal
+  const openModal = () => {
+    setIsModalOpen(true);
+  };
+
+    // Cerrar el modal
+    const closeModal = () => {
+      setIsModalOpen(false);
+      setNewContact('');
+      setNewContactMessage('');
+    };
+
+    const handleAddContact = async () => {
+      try {
+        await addContact(newContact, newContactMessage, sharePresence); // Usa addContact para agregar el contacto
+        closeModal(); // Cierra el modal al añadir el contacto
+        // Aquí puedes agregar lógica adicional para actualizar la lista de contactos
+      } catch (error) {
+        console.error('Error al agregar contacto:', error);
+      }
+    };
 
   useEffect(() => {
     const savedPresence = localStorage.getItem('currentPresence');
@@ -112,28 +142,29 @@ function Chat() {
   
     loadContacts();
   }, []);
-
-  useEffect(() => {
-    const savedMessages = JSON.parse(localStorage.getItem('messages'));
-    if (savedMessages) {
-      setMessages(savedMessages);
-    }
   
+  useEffect(() => {
+    const savedMessages = JSON.parse(localStorage.getItem('messages')) || {};
+    if (selectedContact && savedMessages[selectedContact]) {
+      setMessages(savedMessages[selectedContact]);
+    }
+
     onMessage((msg) => {
       const newMessages = [
         ...messages,
         {
           content: msg.body,
           sender: msg.from === selectedContact ? 'them' : 'me',
-          time: msg.time,
-        }
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
       ];
       setMessages(newMessages);
-  
+
       // Guardar mensajes en localStorage
-      localStorage.setItem('messages', JSON.stringify(newMessages));
+      const updatedMessages = { ...savedMessages, [selectedContact]: newMessages };
+      localStorage.setItem('messages', JSON.stringify(updatedMessages));
     });
-  }, [selectedContact]);
+  }, [selectedContact, messages]);
 
 useEffect(() => {
     onMessage((msg) => {
@@ -159,7 +190,12 @@ useEffect(() => {
 
   const handleContactClick = (contact) => {
     setSelectedContact(contact);
-    localStorage.setItem('selectedContact', contact);
+    const savedMessages = JSON.parse(localStorage.getItem('messages')) || {};
+    if (savedMessages[contact]) {
+      setMessages(savedMessages[contact]);
+    } else {
+      setMessages([]);
+    }
   };
 
   const handlePresenceChange = async (event) => {
@@ -167,7 +203,6 @@ useEffect(() => {
     setCurrentPresence(newPresence);
     try {
       await setPresence(newPresence);
-      localStorage.setItem('currentPresence', newPresence);
     } catch (error) {
       console.error('Error al cambiar la presencia:', error);
     }
@@ -180,7 +215,14 @@ useEffect(() => {
         sender: 'me',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      setMessages([...messages, newMessage]);
+      const newMessages = [...messages, newMessage];
+      setMessages(newMessages);
+
+      // Guardar mensajes en localStorage
+      const savedMessages = JSON.parse(localStorage.getItem('messages')) || {};
+      const updatedMessages = { ...savedMessages, [selectedContact]: newMessages };
+      localStorage.setItem('messages', JSON.stringify(updatedMessages));
+
       try {
         await sendMessage(selectedContact, message);
         setMessage('');
@@ -199,6 +241,20 @@ useEffect(() => {
       window.location.href = '/';
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmation = window.confirm("¿Estás seguro de que deseas eliminar tu cuenta? Esta acción no se puede deshacer.");
+    if (confirmation) {
+      try {
+        await deleteUser();
+        alert("Tu cuenta ha sido eliminada. Serás redirigido a la página de inicio.");
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Error al eliminar la cuenta:', error);
+        alert("Hubo un problema al intentar eliminar tu cuenta. Inténtalo de nuevo más tarde.");
+      }
     }
   };
 
@@ -239,6 +295,8 @@ useEffect(() => {
             </li>
           ))}
         </ul>
+        <button className="add-contact-button" onClick={openModal}>Agregar Contacto</button>
+        <button className="delete-account-button" onClick={handleDeleteAccount}>Eliminar Cuenta</button>
       </div>
 
       <div className="chat-area">
@@ -268,6 +326,42 @@ useEffect(() => {
           <h2>Selecciona un contacto para chatear</h2>
         )}
       </div>
+      {isModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>Agregar Nuevo Contacto</h2>
+            <input
+              type="text"
+              placeholder="Nombre de usuario"
+              value={newContact}
+              onChange={(e) => setNewContact(e.target.value)}
+              className="modal-input"
+            />
+            <textarea
+              placeholder="Mensaje"
+              value={newContactMessage}
+              onChange={(e) => setNewContactMessage(e.target.value)}
+              className="modal-textarea"
+            />
+            <div className="modal-checkbox">
+              <input
+                type="checkbox"
+                checked={sharePresence}
+                onChange={(e) => setSharePresence(e.target.checked)}
+              />
+              <label>Compartir mi estatus</label>
+            </div>
+            <div className="modal-buttons">
+              <button onClick={handleAddContact} className="modal-add-button">
+                Añadir Contacto
+              </button>
+              <button onClick={closeModal} className="modal-close-button">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

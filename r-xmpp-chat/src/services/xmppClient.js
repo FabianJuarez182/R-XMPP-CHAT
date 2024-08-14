@@ -91,6 +91,72 @@ export async function logout() {
   }
 }
 
+// Función para eliminar la cuenta de usuario
+export async function deleteUser() {
+  return new Promise((resolve, reject) => {
+    if (!currentUser || !xmpp) {
+      reject(new Error("No hay usuario conectado o la conexión XMPP no está disponible."));
+      return;
+    }
+
+    const iq = xml(
+      'iq',
+      { type: 'set' },
+      xml('query', { xmlns: 'jabber:iq:register' }, xml('remove'))
+    );
+
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('iq') && stanza.attrs.type === 'result') {
+        console.log('Cuenta eliminada exitosamente');
+        localStorage.clear();  // Limpiar el localStorage
+        resolve();
+      } else if (stanza.is('iq') && stanza.attrs.type === 'error') {
+        reject(new Error('Error al eliminar la cuenta.'));
+      }
+    });
+
+    xmpp.send(iq).catch((err) => {
+      console.error('Error al intentar eliminar la cuenta:', err);
+      reject(err);
+    });
+  });
+}
+
+// Función para añadir un nuevo contacto
+export async function addContact(contactJID, message, sharePresence) {
+  if (!isOnline) {
+    throw new Error("No se puede añadir contacto: no estás online.");
+  }
+
+  try {
+    // Enviar una solicitud de suscripción al contacto
+    const presenceStanza = xml(
+      'presence',
+      { to: contactJID, type: 'subscribe' }
+    );
+    await xmpp.send(presenceStanza);
+
+    // Compartir tu estado con el contacto
+    if (sharePresence) {
+      const sharePresenceStanza = xml(
+        'presence',
+        { to: contactJID }
+      );
+      await xmpp.send(sharePresenceStanza);
+    }
+
+    // Enviar un mensaje opcional al contacto
+    if (message) {
+      await sendMessage(contactJID, message);
+    }
+
+    console.log(`Solicitud de suscripción enviada a ${contactJID}`);
+  } catch (error) {
+    console.error('Error al añadir contacto:', error);
+    throw error;
+  }
+}
+
 function handleStanza(stanza) {
   if (stanza.is('message') && stanza.attrs.type === 'chat') {
     const from = stanza.attrs.from;

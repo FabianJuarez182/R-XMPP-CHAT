@@ -15,6 +15,9 @@
     width: 40%; /* Ancho de la barra lateral */
     height: 95%;
     padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* Esto empuja el contenido hacia arriba y el botón hacia abajo */
     background-color: #f1f1f1; /* Color de fondo de la barra lateral */
     border-right: 1px solid #ccc; /* Línea divisoria */
     overflow-y: auto; /* Para permitir el scroll si hay muchos contactos */
@@ -94,6 +97,8 @@
 
   /* Estilos para la lista de contactos */
   .contact-list {
+    flex-grow: 1;
+    overflow-y: auto;
     list-style-type: none;
     padding: 0;
   }
@@ -174,17 +179,6 @@
     font-size: 12px; /* Tamaño del estado */
   }
 
-  .logout-button {
-    background-color: #87CEEB; /* Cambiar el color a celeste */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    padding: 5px 10px;
-    cursor: pointer;
-    font-size: 12px; /* Hacer el botón más pequeño */
-    margin-left: 8px;
-  }
-
   .user-details {
     margin-left: 10px;
   }
@@ -198,9 +192,8 @@
     width: 100px;    /* Define un ancho específico */
   }
   
-  
   .logout-button {
-    background-color: #87CEEB; /* Color celeste */
+    background-color: #ff0000; /* Color celeste */
     border: none;
     color: white;
     padding: 5px 10px;
@@ -210,4 +203,132 @@
     font-size: 14px;
     margin-top: 10px;
     border-radius: 5px;
+    cursor: pointer;
+    margin-left: 8px;
   }
+
+  .sidebar-bottom {
+    margin-top: auto; /* Asegura que el botón quede abajo */
+  }
+
+  .delete-account-button {
+    background-color: rgb(0, 0, 0);
+    color: white;
+    border: none;
+    padding: 10px;
+    margin-top: 10px;
+    cursor: pointer;
+    width: 100%;
+    font-size: 14px;
+    text-align: center;
+    border-radius: 5px;
+  }
+  
+  .delete-account-button:hover {
+    background-color: rgb(33, 33, 33);
+  }
+
+  /* Estilos para el modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 300px;
+  max-width: 80%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.modal h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.modal-input,
+.modal-textarea {
+  width: 90%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-add-button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.modal-add-button:hover {
+  background-color: #45a049;
+}
+
+.modal-close-button {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.modal-close-button:hover {
+  background-color: #e53935;
+}
+
+.modal-checkbox {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.modal-checkbox input[type="checkbox"] {
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
+}
+
+.modal-checkbox label {
+  font-size: 16px;
+  color: #333;
+}
+
+
+/* Estilo para el botón Agregar Contacto */
+.add-contact-button {
+  background-color: #87CEEB;
+  color: white;
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  width: 100%;
+  font-size: 14px;
+  text-align: center;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+
+.add-contact-button:hover {
+  background-color: #67b7d6;
+}
