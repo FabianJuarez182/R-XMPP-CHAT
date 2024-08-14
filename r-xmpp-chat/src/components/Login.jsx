@@ -16,7 +16,6 @@ function Login() {
       try {
         initializeXMPP(username, password)
           .then(() => {
-            alert('Conectado exitosamente');
             navigate('/chat');
           })
           .catch((error) => {
