@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { sendMessage, getContacts, onMessage, getCurrentUser, getPresence, setPresence, logout, getCurrentPresenceStatus, listenForPresenceUpdates} from '../services/xmppClient';
+import { sendMessage, getContacts, onMessage, getCurrentUser, getPresence, setPresence, logout, getCurrentPresenceStatus, listenForPresenceUpdates, listenForContactsPresenceUpdates } from '../services/xmppClient';
 import './Chat.css';
 
 function Chat() {
@@ -9,13 +9,6 @@ function Chat() {
   const [contacts, setContacts] = useState([]); // Lista de contactos
   const [currentUser, setCurrentUser] = useState(null); // Almacena el nombre del usuario conectado
   const [currentPresence, setCurrentPresence] = useState('Available');
-
-  const presenceOptions = [
-    { value: 'Available', label: 'Available' },
-    { value: 'Away', label: 'Away' },
-    { value: 'Not Available', label: 'Not Available' },
-    { value: 'Busy', label: 'Busy' },
-  ];
 
   useEffect(() => {
     listenForPresenceUpdates((status, from) => {
@@ -40,6 +33,18 @@ function Chat() {
 
     loadContacts();
   }, []);
+
+  useEffect(() => {
+    listenForContactsPresenceUpdates((presenceUpdate) => {
+      setContacts(prevContacts =>
+        prevContacts.map(contact => 
+          contact.jid === presenceUpdate.from 
+            ? { ...contact, status: presenceUpdate.status }
+            : contact
+        )
+      );
+    });
+}, []);
 
   useEffect(() => {
     // Registrar listener para mensajes entrantes
@@ -147,7 +152,10 @@ function Chat() {
               className={`contact-item ${selectedContact === contact.jid ? 'selected' : ''}`}
               onClick={() => handleContactClick(contact.jid)}
             >
-              {contact.name || contact.jid}
+              <div className="contact-info">
+                <span className="contact-name">{contact.name || contact.jid}</span>
+                <span className="contact-status">{contact.status}</span>
+              </div>
             </li>
           ))}
         </ul>

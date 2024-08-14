@@ -107,6 +107,20 @@
     transition: background-color 0.3s;
   }
 
+  
+  .contact-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .contact-name {
+    font-weight: bold;
+  }
+  
+  .contact-status {
+    font-size: 12px;
+  }
+
   .contact-item:hover {
     background-color: #e0e0e0;
   }

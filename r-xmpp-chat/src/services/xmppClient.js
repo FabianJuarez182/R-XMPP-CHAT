@@ -105,7 +105,9 @@ export async function getContacts() {
         const items = stanza.getChild('query').getChildren('item');
         const contacts = items.map(item => ({
           jid: item.attrs.jid,
-          name: item.attrs.name || item.attrs.jid
+          name: item.attrs.name || item.attrs.jid,
+          status: 'Available', // Estado por defecto
+          imageUrl: `https://api.adorable.io/avatars/40/${item.attrs.jid}.png` // Imagen por defecto basada en el JID
         }));
         resolve(contacts);
       }
@@ -156,6 +158,35 @@ export function listenForPresenceUpdates(callback) {
         const status = show ? show.text() : 'online';
         currentPresenceStatus = status;  // Almacena el estado actual
         callback(status, from);
+      }
+    });
+  } else {
+    console.error('XMPP client is not connected');
+  }
+}
+
+// Función para escuchar actualizaciones de presencia de otros usuarios
+export function listenForContactsPresenceUpdates(callback) {
+  if (xmpp) {
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('presence')) {
+        const from = stanza.attrs.from.split('/')[0]; // Remueve la parte de resource
+        const type = stanza.attrs.type;
+        const show = stanza.getChildText('show');
+        
+        let status = 'Available'; // Estado por defecto
+
+        if (type === 'unavailable') {
+          status = 'Not Available';
+        } else if (show === 'away') {
+          status = 'Away';
+        } else if (show === 'dnd') {
+          status = 'Busy';
+        } else if (show === 'xa') {
+          status = 'Not Available';
+        }
+
+        callback({ from, status });
       }
     });
   } else {
