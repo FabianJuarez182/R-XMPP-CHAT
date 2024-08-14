@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { sendMessage, getContacts, onMessage, getCurrentUser, getPresence, setPresence, logout, getCurrentPresenceStatus, listenForPresenceUpdates, listenForContactsPresenceUpdates } from '../services/xmppClient';
+import { initializeXMPP, sendMessage, getContacts, onMessage, getCurrentUser, getPresence, setPresence, logout, getCurrentPresenceStatus, listenForPresenceUpdates, listenForContactsPresenceUpdates } from '../services/xmppClient';
 import './Chat.css';
 
 function Chat() {
@@ -10,6 +10,8 @@ function Chat() {
   const [currentUser, setCurrentUser] = useState(null); // Almacena el nombre del usuario conectado
   const [currentPresence, setCurrentPresence] = useState('Available');
 
+  
+  
   useEffect(() => {
     listenForPresenceUpdates((status, from) => {
       if (from === getCurrentUser()) {
@@ -19,20 +21,104 @@ function Chat() {
   }, []);
 
   useEffect(() => {
-    // Cargar los contactos desde el servidor cuando el componente se monta
     const loadContacts = async () => {
       try {
-        const contactList = await getContacts();
-        setContacts(contactList);
-        setCurrentUser(getCurrentUser());
-        setCurrentPresence(getPresence()); // Obtén el estado actual
+        // Verifica si hay contactos guardados en localStorage
+        const savedContacts = JSON.parse(localStorage.getItem('contacts'));
+        if (savedContacts) {
+          setContacts(savedContacts);
+        } else {
+          const contactList = await getContacts();
+          setContacts(contactList);
+          setCurrentUser(getCurrentUser());
+          setCurrentPresence(getPresence()); // Obtén el estado actual
+          // Guardar contactos en localStorage
+          localStorage.setItem('contacts', JSON.stringify(contactList));
+  
+          // Escuchar y actualizar presencias de contactos
+          listenForContactsPresenceUpdates((presenceUpdate) => {
+            const updatedContacts = contactList.map(contact =>
+              contact.jid === presenceUpdate.from 
+                ? { ...contact, status: presenceUpdate.status }
+                : contact
+            );
+            setContacts(updatedContacts);
+            localStorage.setItem('contacts', JSON.stringify(updatedContacts));
+          });
+        }
       } catch (error) {
         console.error('Error al cargar los contactos:', error);
       }
     };
-
+  
     loadContacts();
   }, []);
+
+  useEffect(() => {
+    const username = localStorage.getItem('username');
+    const password = localStorage.getItem('password');
+  
+    if (username && password) {
+      // Si las credenciales están presentes, reconectar automáticamente
+      initializeXMPP(username, password)
+        .then(() => {
+          setCurrentUser(username);
+          setCurrentPresence(getPresence());
+        })
+        .catch((error) => {
+          console.error('Error al reconectar:', error);
+        });
+    }
+  }, []);
+  
+
+  useEffect(() => {
+    const savedPresence = localStorage.getItem('currentPresence');
+    const savedUser = localStorage.getItem('currentUser');
+  
+    if (savedPresence) {
+      setCurrentPresence(savedPresence);
+    }
+  
+    if (savedUser) {
+      setCurrentUser(savedUser);
+    } else {
+      const username = getCurrentUser();
+      setCurrentUser(username);
+      localStorage.setItem('currentUser', username);
+    }
+  
+    listenForPresenceUpdates((status, from) => {
+      if (from === getCurrentUser()) {
+        setCurrentPresence(status);
+        localStorage.setItem('currentPresence', status);
+      }
+    });
+  }, []);
+  
+
+  useEffect(() => {
+    const savedMessages = JSON.parse(localStorage.getItem('messages'));
+    if (savedMessages) {
+      setMessages(savedMessages);
+    }
+  
+    onMessage((msg) => {
+      const newMessages = [
+        ...messages,
+        {
+          content: msg.body,
+          sender: msg.from === selectedContact ? 'them' : 'me',
+          time: msg.time,
+        }
+      ];
+      setMessages(newMessages);
+  
+      // Guardar mensajes en localStorage
+      localStorage.setItem('messages', JSON.stringify(newMessages));
+    });
+  }, [selectedContact, messages]);
+  
 
   useEffect(() => {
     listenForContactsPresenceUpdates((presenceUpdate) => {
@@ -45,6 +131,19 @@ function Chat() {
       );
     });
 }, []);
+
+useEffect(() => {
+  const savedSelectedContact = localStorage.getItem('selectedContact');
+  if (savedSelectedContact) {
+    setSelectedContact(savedSelectedContact);
+  }
+}, []);
+
+const handleContactClick = (contact) => {
+  setSelectedContact(contact);
+  localStorage.setItem('selectedContact', contact);
+};
+
 
   useEffect(() => {
     // Registrar listener para mensajes entrantes
@@ -105,10 +204,6 @@ function Chat() {
         console.error('Error al enviar el mensaje:', error);
       }
     }
-  };
-
-  const handleContactClick = (contact) => {
-    setSelectedContact(contact);
   };
 
   // Manejo del Logout

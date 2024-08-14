@@ -54,9 +54,6 @@ function Login() {
           />
         </div>
         <button type="submit" className="button">Log in</button>
-        <div className="linkGroup">
-          <a href="#" className="link">Forgot Password?</a>
-        </div>
       </form>
       <div className="createAccount">
         <a href="/SignUp" className="createAccountLink">Create an Account</a>

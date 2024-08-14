@@ -12,6 +12,19 @@ let messageListeners = [];
 
 function initializeXMPP(username, password) {
   return new Promise((resolve, reject) => {
+    if (!username || !password) {
+      // Recuperar credenciales del localStorage si existen
+      username = localStorage.getItem('username');
+      password = localStorage.getItem('password');
+    }
+  
+    // Guardar las credenciales en localStorage
+    localStorage.setItem('username', username);
+    localStorage.setItem('password', password);
+    if (isOnline) {
+      resolve();  // Si ya está online, no hace falta volver a conectar
+      return;
+    }
     xmpp = client({
       service: "ws://alumchat.lol:7070/ws/",
       domain: "alumchat.lol",
@@ -61,11 +74,15 @@ export async function logout() {
     await xmpp.stop(); // Detiene la conexión XMPP
     isOnline = false;
     console.log('Logout exitoso.');
+    // Opcional: Eliminar las credenciales del almacenamiento local si realmente quieres que el usuario cierre sesión completamente.
+    localStorage.removeItem('username');
+    localStorage.removeItem('password');
   } catch (error) {
     console.error('Error durante el logout:', error);
     throw error;
   }
 }
+
 
 // Maneja los mensajes entrantes
 function handleStanza(stanza) {
@@ -109,7 +126,36 @@ export async function getContacts() {
           status: 'Available', // Estado por defecto
           imageUrl: `https://api.adorable.io/avatars/40/${item.attrs.jid}.png` // Imagen por defecto basada en el JID
         }));
-        resolve(contacts);
+         // Ahora solicitamos la presencia actual para cada contacto
+         contacts.forEach(contact => {
+          const presenceIq = xml(
+            'presence',
+            { to: contact.jid }
+          );
+          xmpp.send(presenceIq); // Envía la solicitud de presencia
+
+          // Escucha la respuesta de presencia
+          xmpp.on('stanza', (presenceStanza) => {
+            if (presenceStanza.is('presence') && presenceStanza.attrs.from.includes(contact.jid)) {
+              let status = 'Available'; // Estado por defecto
+              const show = presenceStanza.getChildText('show');
+
+              if (presenceStanza.attrs.type === 'unavailable') {
+                status = 'Not Available';
+              } else if (show === 'away') {
+                status = 'Away';
+              } else if (show === 'dnd') {
+                status = 'Busy';
+              } else if (show === 'xa') {
+                status = 'Not Available';
+              }
+
+              // Actualizar el estado del contacto
+              contact.status = status;
+              resolve(contacts);  // Resuelve los contactos con sus estados actualizados
+            }
+          });
+        });
       }
     });
 
