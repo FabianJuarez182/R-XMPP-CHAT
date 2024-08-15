@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   initializeXMPP,
   sendMessage,
+  sendGroupMessage,
   getContacts,
   onMessage,
   getCurrentUser,
@@ -12,8 +13,19 @@ import {
   addContact,
   getCurrentPresenceStatus,
   listenForPresenceUpdates,
-  listenForContactsPresenceUpdates
+  listenForContactsPresenceUpdates,
+  listenForContactInvitations, // Una función que debe implementar para escuchar invitaciones
+  acceptContactInvitation,
+  rejectContactInvitation,
+  getGroups, // Nueva función para obtener los grupos
+  joinGroup, // Nueva función para unirse a un grupo
+  listenForGroupInvitations,  // Nueva función para escuchar invitaciones a grupos
+  acceptGroupInvitation,      // Nueva función para aceptar invitaciones a grupos
+  rejectGroupInvitation       // Nueva función para rechazar invitaciones a grupos
 } from '../services/xmppClient';
+import NotificationPopup from './NotificationPopup';
+import MessageNotificationPopup from './MessageNotificationPopup';
+import GroupInvitationPopup from './GroupInvitationPopup'; // Nuevo componente de notificación para invitaciones a grupos
 import './Chat.css';
 
 function Chat() {
@@ -21,14 +33,21 @@ function Chat() {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [contacts, setContacts] = useState([]); // Lista de contactos
+  const [groups, setGroups] = useState([]); // Lista de grupos
   const [currentUser, setCurrentUser] = useState(null); // Almacena el nombre del usuario conectado
   const [currentPresence, setCurrentPresence] = useState('Available');
+  const [presenceMessage, setPresenceMessage] = useState(''); // Nuevo estado para el mensaje de presencia
   const [sharePresence, setSharePresence] = useState(true); // Por defecto, compartir estatus es verdadero
+  const [newMessages, setNewMessages] = useState([]);
+  const [groupInvitations, setGroupInvitations] = useState([]); // Estado para las invitaciones a grupos
+  const [isGroup, setIsGroup] = useState(false); // Para saber si el chat actual es de un grupo
 
     // Estado para el modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newContact, setNewContact] = useState('');
     const [newContactMessage, setNewContactMessage] = useState('');
+    const [invitations, setInvitations] = useState([]);
+
 
       // Mostrar el modal
   const openModal = () => {
@@ -88,16 +107,20 @@ function Chat() {
           setCurrentPresence(getPresence());
           // Cargar los contactos desde el servidor
           loadContacts();
+          loadGroups();  // Cargar grupos después de conectarse
 
           // Escuchar actualizaciones de presencia de contactos
           listenForContactsPresenceUpdates((presenceUpdate) => {
             setContacts(prevContacts =>
               prevContacts.map(contact => 
                 contact.jid === presenceUpdate.from 
-                  ? { ...contact, status: presenceUpdate.status }
+                  ? { ...contact, status: presenceUpdate.status, statusMessage: presenceUpdate.statusMessage  }
                   : contact
               )
             );
+          });
+        listenForGroupInvitations((groupInvitation) => {
+          setGroupInvitations(prevInvitations => [...prevInvitations, groupInvitation]);
           });
         })
         .catch((error) => {
@@ -121,19 +144,23 @@ function Chat() {
         const contactList = await getContacts();
         setContacts(contactList);
         setCurrentUser(getCurrentUser());
-        setCurrentPresence(getPresence()); // Obtén el estado actual
-        // Guardar contactos en localStorage
+        setCurrentPresence(getPresence());
         localStorage.setItem('contacts', JSON.stringify(contactList));
-  
-        // Escuchar y actualizar presencias de contactos
+
         listenForContactsPresenceUpdates((presenceUpdate) => {
-          const updatedContacts = contactList.map(contact =>
-            contact.jid === presenceUpdate.from 
-              ? { ...contact, status: presenceUpdate.status }
-              : contact
+          console.log('Presence update received:', presenceUpdate);  // Verificar que las actualizaciones se reciben
+          setContacts(prevContacts =>
+            prevContacts.map(contact =>
+              contact.jid === presenceUpdate.from
+                ? {
+                    ...contact,
+                    status: presenceUpdate.status,
+                    statusMessage: presenceUpdate.statusMessage || contact.statusMessage // Actualizar el status y el statusMessage
+                  }
+                : contact
+            )
           );
-          setContacts(updatedContacts);
-          localStorage.setItem('contacts', JSON.stringify(updatedContacts));
+          localStorage.setItem('contacts', JSON.stringify(contacts));
         });
       } catch (error) {
         console.error('Error al cargar los contactos:', error);
@@ -142,6 +169,29 @@ function Chat() {
   
     loadContacts();
   }, []);
+  
+  const loadGroups = async () => {
+    try {
+      const groupList = await getGroups();
+      setGroups(groupList);
+    } catch (error) {
+      console.error('Error al cargar los grupos:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (contacts.length > 0) { // Asegurarse de que los contactos están cargados
+      const loadGroups = async () => {
+        try {
+          const groupList = await getGroups();
+          setGroups(groupList);
+        } catch (error) {
+          console.error('Error al cargar los grupos:', error);
+        }
+      };
+      loadGroups();
+    }
+  }, [contacts]);
   
   useEffect(() => {
     const savedMessages = JSON.parse(localStorage.getItem('messages')) || {};
@@ -188,8 +238,9 @@ useEffect(() => {
     }
   }, []);
 
-  const handleContactClick = (contact) => {
+  const handleContactClick = (contact, isGroup = false) => {
     setSelectedContact(contact);
+    setIsGroup(isGroup);
     const savedMessages = JSON.parse(localStorage.getItem('messages')) || {};
     if (savedMessages[contact]) {
       setMessages(savedMessages[contact]);
@@ -202,7 +253,7 @@ useEffect(() => {
     const newPresence = event.target.value;
     setCurrentPresence(newPresence);
     try {
-      await setPresence(newPresence);
+      await setPresence(newPresence, presenceMessage); // Ahora envía el mensaje de presencia
     } catch (error) {
       console.error('Error al cambiar la presencia:', error);
     }
@@ -224,7 +275,11 @@ useEffect(() => {
       localStorage.setItem('messages', JSON.stringify(updatedMessages));
 
       try {
-        await sendMessage(selectedContact, message);
+        if (isGroup) {
+          await sendGroupMessage(selectedContact, message);
+        } else {
+          await sendMessage(selectedContact, message);
+        }
         setMessage('');
         localStorage.setItem('messages', JSON.stringify([...messages, newMessage]));
       } catch (error) {
@@ -258,6 +313,50 @@ useEffect(() => {
     }
   };
 
+
+  useEffect(() => {
+    listenForContactInvitations((invitation) => {
+      setInvitations((prevInvitations) => [...prevInvitations, invitation]);
+    });
+  }, []);
+
+  const handleAccept = (invite) => {
+    acceptContactInvitation(invite.from);
+    setInvitations(invitations.filter(i => i !== invite));
+  };
+
+  const handleReject = (invite) => {
+    rejectContactInvitation(invite.from);
+    setInvitations(invitations.filter(i => i !== invite));
+  };
+
+  useEffect(() => {
+    listenForGroupInvitations((invite) => {
+      setGroupInvitations((prevInvites) => [...prevInvites, invite]);
+    });
+  }, []);
+  
+  const handleAcceptGroupInvite = (invite) => {
+    acceptGroupInvitation(invite.groupName);
+    setGroupInvitations(groupInvitations.filter(i => i !== invite));
+  };
+  
+  const handleRejectGroupInvite = (invite) => {
+    rejectGroupInvitation(invite.groupName);
+    setGroupInvitations(groupInvitations.filter(i => i !== invite));
+  };
+  
+
+  useEffect(() => {
+    onMessage((msg) => {
+      setNewMessages((prevMessages) => [...prevMessages, msg]);
+    });
+  }, []);
+
+  const handleCloseNotification = () => {
+    setNewMessages([]);
+  };
+
   return (
     <div className="chat-container">
       <div className="sidebar">
@@ -276,6 +375,13 @@ useEffect(() => {
                 <option value="Not Available">Not Available</option>
                 <option value="Busy">Busy</option>
               </select>
+              <input 
+                type="text" 
+                placeholder="Mensaje de estado"
+                value={presenceMessage}
+                onChange={(e) => setPresenceMessage(e.target.value)}
+                className="presence-message-input"
+              />
             </div>
           </div>
           <button className="logout-button" onClick={handleLogout}>LOGOUT</button>
@@ -289,8 +395,25 @@ useEffect(() => {
               onClick={() => handleContactClick(contact.jid)}
             >
               <div className="contact-info">
-                <span className="contact-name">{contact.name || contact.jid}</span>
+                <span className="contact-name">{contact.name.split('@')[0] || contact.jid}</span>
                 <span className="contact-status">{contact.status}</span>
+                {contact.statusMessage && (
+                  <span className="contact-status-message">.Status: {contact.statusMessage}</span> // Muestra el mensaje de presencia
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <h3>Grupos</h3>
+        <ul className="group-list">
+          {groups.map((group, index) => (
+            <li
+              key={index}
+              className={`group-item ${selectedContact === group.jid ? 'selected' : ''}`}
+              onClick={() => handleContactClick(group.jid, true)}
+            >
+              <div className="group-info">
+                <span className="group-name">{group.name || group.jid}</span>
               </div>
             </li>
           ))}
@@ -362,6 +485,20 @@ useEffect(() => {
           </div>
         </div>
       )}
+      <GroupInvitationPopup
+        invitations={groupInvitations}
+        onAccept={handleAcceptGroupInvite}
+        onReject={handleRejectGroupInvite}
+      />
+      <MessageNotificationPopup
+        messages={newMessages}
+        onClose={handleCloseNotification}
+      />
+        <NotificationPopup
+        invitations={invitations}
+        onAccept={handleAccept}
+        onReject={handleReject}
+      />
     </div>
   );
 }

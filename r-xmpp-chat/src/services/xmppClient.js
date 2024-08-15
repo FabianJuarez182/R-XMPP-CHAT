@@ -205,6 +205,115 @@ export async function getContacts() {
   });
 }
 
+export function listenForGroupInvitations(callback) {
+  if (xmpp) {
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('message') && stanza.attrs.type === 'groupchat') {
+        const from = stanza.attrs.from;
+        const groupName = stanza.getChildText('x'); // Si el nombre del grupo se envía en una etiqueta 'x'
+        callback({ groupName: from.split('/')[0] });
+      }
+    });
+  } else {
+    console.error('XMPP client is not connected');
+  }
+}
+
+
+export async function acceptGroupInvitation(from) {
+  if (!isOnline) {
+    throw new Error("No se puede aceptar la invitación: no estás online.");
+  }
+
+  try {
+    await joinGroup(from);
+    console.log(`Te has unido al grupo ${from}`);
+  } catch (error) {
+    console.error('Error al aceptar la invitación:', error);
+    throw error;
+  }
+}
+
+export async function rejectGroupInvitation(from) {
+  if (!isOnline) {
+    throw new Error("No se puede rechazar la invitación: no estás online.");
+  }
+
+  try {
+    const presenceStanza = xml('presence', { to: from, type: 'unsubscribed' });
+    await xmpp.send(presenceStanza);
+    console.log(`Rechazada la invitación al grupo ${from}`);
+  } catch (error) {
+    console.error('Error al rechazar la invitación:', error);
+    throw error;
+  }
+}
+
+export async function getGroups() {
+  return new Promise((resolve, reject) => {
+    const iq = xml(
+      'iq',
+      { type: 'get', to: 'conference.alumchat.lol', id: 'group1' },
+      xml('query', { xmlns: 'http://jabber.org/protocol/disco#items' }) // Utilizando disco#items para descubrir salas
+    );
+
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('iq') && stanza.getChild('query')) {
+        const items = stanza.getChild('query').getChildren('item');
+        const groups = items.map(item => ({
+          jid: item.attrs.jid,
+          name: item.attrs.name || item.attrs.jid
+        }));
+        resolve(groups);
+      }
+    });
+
+    xmpp.send(iq).catch((err) => {
+      console.error('Error al obtener los grupos:', err);
+      reject(err);
+    });
+  });
+}
+
+
+export async function joinGroup(groupJID) {
+  if (!isOnline) {
+    throw new Error("No se puede unir al grupo: no estás online.");
+  }
+
+  try {
+    const presence = xml(
+      'presence',
+      { to: `${groupJID}/${currentUser}` },
+      xml('x', { xmlns: 'http://jabber.org/protocol/muc' })
+    );
+    await xmpp.send(presence);
+    console.log(`Unido al grupo ${groupJID}`);
+  } catch (error) {
+    console.error('Error al unirse al grupo:', error);
+    throw error;
+  }
+}
+
+export async function sendGroupMessage(to, body) {
+  if (!isOnline) {
+    throw new Error("No se puede enviar mensaje al grupo: no estás online.");
+  }
+
+  try {
+    const message = xml(
+      "message",
+      { to, type: "groupchat" },
+      xml("body", {}, body)
+    );
+    await xmpp.send(message);
+    console.log(`Mensaje enviado al grupo ${to}: ${body}`);
+  } catch (error) {
+    console.error('Error al enviar el mensaje al grupo:', error);
+    throw error;
+  }
+}
+
 export async function sendMessage(to, body) {
   if (!isOnline) {
     throw new Error("No se puede enviar mensaje: no estás online.");
@@ -228,19 +337,25 @@ export function listenForPresenceUpdates(callback) {
   if (xmpp) {
     xmpp.on('stanza', (stanza) => {
       if (stanza.is('presence')) {
-        const from = stanza.attrs.from;
+        const from = stanza.attrs.from.split('/')[0];
         const type = stanza.attrs.type;
+        const show = stanza.getChildText('show');
+        const statusMessage = stanza.getChildText('status');
+
+        let status = 'Available';
 
         if (type === 'unavailable') {
-          callback('offline', from);
-          currentPresenceStatus = 'offline';
-          return;
+          status = 'Not Available';
+        } else if (show === 'away') {
+          status = 'Away';
+        } else if (show === 'dnd') {
+          status = 'Busy';
+        } else if (show === 'xa') {
+          status = 'Not Available';
         }
 
-        const show = stanza.getChild('show');
-        const status = show ? show.text() : 'online';
         currentPresenceStatus = status;
-        callback(status, from);
+        callback({ from, status, statusMessage });
       }
     });
   } else {
@@ -255,6 +370,7 @@ export function listenForContactsPresenceUpdates(callback) {
         const from = stanza.attrs.from.split('/')[0];
         const type = stanza.attrs.type;
         const show = stanza.getChildText('show');
+        const statusMessage = stanza.getChildText('status');  // Obtener el mensaje de estado
 
         let status = 'Available';
 
@@ -267,8 +383,8 @@ export function listenForContactsPresenceUpdates(callback) {
         } else if (show === 'xa') {
           status = 'Not Available';
         }
-
-        callback({ from, status });
+        currentPresenceStatus = status;
+        callback({ from, status, statusMessage });  // Enviar el mensaje de estado en el callback
       }
     });
   } else {
@@ -280,7 +396,7 @@ export function getCurrentPresenceStatus() {
   return currentPresenceStatus;
 }
 
-async function sendPresence(presence) {
+async function sendPresence(presence, message = '') {
   if (!isOnline) {
     console.error('La conexión aún no está establecida.');
     return;
@@ -305,7 +421,7 @@ async function sendPresence(presence) {
       break;
   }
   try {
-    const presenceStanza = xml('presence', {}, show ? xml('show', {}, show) : null);
+    const presenceStanza = xml('presence', {}, show ? xml('show', {}, show) : null, message ? xml('status', {}, message) : null);
     await xmpp.send(presenceStanza);
     currentPresence = presence;
   } catch (error) {
@@ -317,8 +433,8 @@ export function getPresence() {
   return currentPresence;
 }
 
-export async function setPresence(presence) {
-  await sendPresence(presence);
+export async function setPresence(presence, message) {
+  await sendPresence(presence, message);
 }
 
 export async function signUp(username, fullName, email, password) {
@@ -375,6 +491,49 @@ export async function signUp(username, fullName, email, password) {
       reject(new Error('Failed to connect: ' + err.message));
     });
   });
+}
+
+export function listenForContactInvitations(callback) {
+  if (xmpp) {
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('presence') && stanza.attrs.type === 'subscribe') {
+        const from = stanza.attrs.from;
+        callback({ from });
+      }
+    });
+  } else {
+    console.error('XMPP client is not connected');
+  }
+}
+
+export async function acceptContactInvitation(from) {
+  if (!isOnline) {
+    throw new Error("No se puede aceptar la invitación: no estás online.");
+  }
+
+  try {
+    const presenceStanza = xml('presence', { to: from, type: 'subscribed' });
+    await xmpp.send(presenceStanza);
+    console.log(`Aceptada la invitación de ${from}`);
+  } catch (error) {
+    console.error('Error al aceptar la invitación:', error);
+    throw error;
+  }
+}
+
+export async function rejectContactInvitation(from) {
+  if (!isOnline) {
+    throw new Error("No se puede rechazar la invitación: no estás online.");
+  }
+
+  try {
+    const presenceStanza = xml('presence', { to: from, type: 'unsubscribed' });
+    await xmpp.send(presenceStanza);
+    console.log(`Rechazada la invitación de ${from}`);
+  } catch (error) {
+    console.error('Error al rechazar la invitación:', error);
+    throw error;
+  }
 }
 
 
