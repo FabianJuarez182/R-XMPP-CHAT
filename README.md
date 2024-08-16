@@ -33,7 +33,7 @@ yarn dev
 ### Communication
 * Show all contacts and their status
 * Add a user to contacts
-* Show contact details of a user (not understand at all) 
+* Show contact details of a user  
 * 1 to 1 communication with any user/contact (not fully implemented)
 * Participate in group conversations (not fully implemented)
 * Define presence message
