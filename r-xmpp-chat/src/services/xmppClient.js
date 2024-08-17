@@ -8,7 +8,8 @@ let currentPresence = 'Available';
 let currentPresenceStatus = 'online';
 let messageListeners = [];
 let processedInvitations = new Set(); // Set to track processed invitations
-
+let processedGroupInvitations = new Set();
+let currentGroups = new Set();
 
 let reconnecting = false;
 
@@ -65,25 +66,25 @@ function initializeXMPP(username, password) {
       }
     });
 
-      xmpp.on('stanza', (stanza) => {
-        console.log('Stanza received:', stanza.toString());
-
-        if (stanza.is('message') && stanza.attrs.type === 'chat') {
-          const from = stanza.attrs.from;
-          const body = stanza.getChildText('body');
-
-          console.log('Message received:', body);
-
-          if (body) {
-            const message = {
-              from,
-              body,
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-            messageListeners.forEach(listener => listener(message));
-          }
+    xmpp.on('stanza', (stanza) => {
+      console.log('Stanza received:', stanza.toString());
+    
+      if (stanza.is('message') && stanza.attrs.type === 'chat') {
+        const from = stanza.attrs.from;
+        const body = stanza.getChildText('body');
+    
+        if (body && body.trim() !== '') { // Verificar que el cuerpo no esté vacío
+          const message = {
+            from,
+            body,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          messageListeners.forEach(listener => listener(message));
+        } else {
+          console.error('Mensaje vacío recibido, ignorando:', stanza.toString());
         }
-      });
+      }
+    });
     xmpp.start().catch((err) => {
       console.error('Failed to connect:', err);
       reject(new Error('Failed to connect: ' + err.message));
@@ -222,16 +223,19 @@ export function listenForGroupInvitations(callback) {
   if (xmpp) {
     xmpp.on('stanza', (stanza) => {
       if (stanza.is('message') && stanza.attrs.type === 'groupchat') {
-        const from = stanza.attrs.from;
-        const groupName = stanza.getChildText('x'); // Si el nombre del grupo se envía en una etiqueta 'x'
-        callback({ groupName: from.split('/')[0] });
+        const from = stanza.attrs.from.split('/')[0]; // Obtener solo el JID del grupo
+
+        // Verifica si la invitación ya ha sido procesada o si ya estás en el grupo
+        if (!processedGroupInvitations.has(from) && !currentGroups.has(from)) {
+          processedGroupInvitations.add(from); // Marca la invitación como procesada
+          callback({ groupName: from });
+        }
       }
     });
   } else {
     console.error('XMPP client is not connected');
   }
 }
-
 
 export async function acceptGroupInvitation(from) {
   if (!isOnline) {
@@ -240,6 +244,7 @@ export async function acceptGroupInvitation(from) {
 
   try {
     await joinGroup(from);
+    currentGroups.add(from); // Agrega el grupo al set de grupos actuales
     console.log(`Te has unido al grupo ${from}`);
   } catch (error) {
     console.error('Error al aceptar la invitación:', error);
@@ -255,6 +260,7 @@ export async function rejectGroupInvitation(from) {
   try {
     const presenceStanza = xml('presence', { to: from, type: 'unsubscribed' });
     await xmpp.send(presenceStanza);
+    processedGroupInvitations.delete(from); // Elimina la invitación procesada si la rechazas
     console.log(`Rechazada la invitación al grupo ${from}`);
   } catch (error) {
     console.error('Error al rechazar la invitación:', error);
@@ -301,6 +307,7 @@ export async function joinGroup(groupJID) {
       xml('x', { xmlns: 'http://jabber.org/protocol/muc' })
     );
     await xmpp.send(presence);
+    currentGroups.add(groupJID); // Agrega el grupo al set de grupos actuales
     console.log(`Unido al grupo ${groupJID}`);
   } catch (error) {
     console.error('Error al unirse al grupo:', error);
@@ -334,8 +341,10 @@ export function listenForGroupMessages(callback) {
         const from = stanza.attrs.from;
         const body = stanza.getChildText('body');
 
-        if (body) {
+        if (body && body.trim() !== '') { // Verificar que el cuerpo no esté vacío
           callback({ from, body });
+        } else {
+          console.error('Mensaje de grupo vacío recibido, ignorando:', stanza.toString());
         }
       } else if (stanza.is('presence')) {
         console.log(`Presence stanza received: ${stanza.toString()}`);
@@ -347,6 +356,7 @@ export function listenForGroupMessages(callback) {
     console.error('XMPP client is not connected');
   }
 }
+
 
 
 
@@ -370,6 +380,12 @@ export async function sendGroupMessage(roomJID, message) {
 export async function sendMessage(to, body) {
   if (!isOnline) {
     throw new Error("No se puede enviar mensaje: no estás online.");
+  }
+
+  // Verifica que el cuerpo del mensaje no esté vacío
+  if (!body || body.trim() === '') {
+    console.error('No se puede enviar un mensaje vacío.');
+    return;
   }
 
   try {

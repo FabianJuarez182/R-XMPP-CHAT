@@ -141,9 +141,9 @@ function Chat() {
   useEffect(() => {
     const messageListener = (msg) => {
       const senderJID = msg.from.split('/')[0];
-      const currentUserJID = `${currentUser}@yourdomain.com`;  // Adjust domain as needed
+      const currentUserJID = `${currentUser}@yourdomain.com`;  // Ajusta el dominio según sea necesario
   
-      if (senderJID !== currentUserJID) {
+      if (senderJID !== currentUserJID && msg.body.trim() !== '') {  // Verifica que el cuerpo del mensaje no esté vacío
         const newMessage = {
           content: msg.body || 'No content',
           sender: senderJID.split('@')[0],
@@ -166,6 +166,7 @@ function Chat() {
       offMessage(messageListener);
     };
   }, [selectedContact, isGroup]);
+  
 
   const loadContacts = async () => {
     try {
@@ -280,15 +281,16 @@ function Chat() {
 
   useEffect(() => {
     if (isGroup) {
-      const currentUserJID = `${currentUser}@yourdomain.com`;  // Replace with actual domain
+      const currentUserJID = `${currentUser}@alumchat.lol`;
       joinGroup(selectedContact, currentUser);
   
       const handleGroupMessage = (msg) => {
+        const senderJID = msg.from.split('/')[0];
         // Filter out messages sent by the current user
-        if (msg.from.split('/')[0] !== currentUserJID) {
+        if (msg.body.trim() !== '' && senderJID !== currentUserJID) {
           const newMessage = {
             content: msg.body,
-            sender: msg.from.split('@')[0],
+            sender: senderJID.split('@')[0],
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           };
   
@@ -318,7 +320,7 @@ function Chat() {
   };
 
   const handleSendMessage = async () => {
-    if (message) {
+    if (message.trim() !== '') {  // Verifica que el mensaje no esté vacío
       const newMessage = {
         content: message,
         sender: 'me',
@@ -326,7 +328,7 @@ function Chat() {
       };
       const newMessages = [...messages, newMessage];
       setMessages(newMessages);
-
+  
       setMessageHistory(prevHistory => {
         const updatedHistory = { ...prevHistory, [selectedContact]: newMessages };
         localStorage.setItem('messageHistory', JSON.stringify(updatedHistory));
@@ -338,12 +340,15 @@ function Chat() {
         } else {
           await sendMessage(selectedContact, message);
         }
-        setMessage('');
+        setMessage('');  // Limpia el input de mensaje después de enviar
       } catch (error) {
         console.error('Error al enviar el mensaje:', error);
       }
+    } else {
+      console.error('Mensaje vacío, no enviado.');
     }
   };
+
 
   // Manejo del Logout
   const handleLogout = async () => {
