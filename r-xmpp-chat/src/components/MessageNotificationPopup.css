@@ -1,55 +1,66 @@
 .message-notification-popup {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 300px;
-    background-color: white;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    border-radius: 5px;
-    z-index: 1000;
-  }
-  
-  .popup-header {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    border-bottom: 1px solid #ddd;
-  }
-  
-  .popup-header h3 {
-    margin: 0;
-  }
-  
-  .popup-header button {
-    background: none;
-    border: none;
-    font-size: 16px;
-    cursor: pointer;
-  }
-  
-  .popup-body {
-    padding: 10px;
-  }
-  
-  .message-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    padding: 5px;
-    border-bottom: 1px solid #ddd;
-  }
-  
-  .close-button {
-    background: none;
-    border: none;
-    color: #ff0000;
-    font-size: 16px;
-    cursor: pointer;
-    margin-left: 10px;
-    outline: none;
-  }
-  
-  .close-button:hover {
-    color: #cc0000;
-  }
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 300px;
+  max-height: 400px; /* Set a maximum height to trigger scrolling */
+  background-color: white;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
+  z-index: 1000;
+  overflow: hidden; /* Ensure the content inside respects the boundaries */
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.popup-header h3 {
+  margin: 0;
+}
+
+.popup-header button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.popup-body {
+  padding: 10px;
+  max-height: 300px; /* Adjust this height as needed */
+  overflow-y: auto; /* Allow vertical scrolling */
+  scrollbar-width: none; /* Hide scrollbar in Firefox */
+  -ms-overflow-style: none;  /* Hide scrollbar in Internet Explorer and Edge */
+}
+
+.popup-body::-webkit-scrollbar {
+  width: 0px;  /* Hide scrollbar in WebKit browsers */
+  background: transparent;  /* Hide scrollbar in WebKit browsers */
+}
+
+.message-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: #ff0000;
+  font-size: 16px;
+  cursor: pointer;
+  margin-left: 10px;
+  outline: none;
+}
+
+.close-button:hover {
+  color: #cc0000;
+}

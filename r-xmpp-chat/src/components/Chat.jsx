@@ -16,6 +16,7 @@ import {
   listenForPresenceUpdates,
   listenForContactsPresenceUpdates,
   listenForContactInvitations, // Una función que debe implementar para escuchar invitaciones
+  listenForGroupMessages,
   acceptContactInvitation,
   rejectContactInvitation,
   getGroups, // Nueva función para obtener los grupos
@@ -44,6 +45,7 @@ function Chat() {
   const [isGroup, setIsGroup] = useState(false); // Para saber si el chat actual es de un grupo
   const [messageHistory, setMessageHistory] = useState({}); // Historial de mensajes por contacto
   const [listeners, setListeners] = useState([]);
+  const processedInvitations = new Set();
 
 
     // Estado para el modal
@@ -126,12 +128,44 @@ function Chat() {
         listenForGroupInvitations((groupInvitation) => {
           setGroupInvitations(prevInvitations => [...prevInvitations, groupInvitation]);
           });
+        listenForGroupMessages((msg) => {
+            setMessages(prevMessages => [...prevMessages, msg]);
+          });
         })
         .catch((error) => {
           console.error('Error al reconectar:', error);
         });
     }
   }, []);
+
+  useEffect(() => {
+    const messageListener = (msg) => {
+      const senderJID = msg.from.split('/')[0];
+      const currentUserJID = `${currentUser}@yourdomain.com`;  // Adjust domain as needed
+  
+      if (senderJID !== currentUserJID) {
+        const newMessage = {
+          content: msg.body || 'No content',
+          sender: senderJID.split('@')[0],
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+  
+        setMessages(prevMessages => {
+          const updatedMessages = [...prevMessages, newMessage];
+          localStorage.setItem('messages', JSON.stringify(updatedMessages));
+          return updatedMessages;
+        });
+  
+        setNewMessages(prevMessages => [...prevMessages, newMessage]);
+      }
+    };
+  
+    onMessage(messageListener);
+  
+    return () => {
+      offMessage(messageListener);
+    };
+  }, [selectedContact, isGroup]);
 
   const loadContacts = async () => {
     try {
@@ -220,12 +254,6 @@ function Chat() {
     onMessage(messageListener);
   
     return () => {
-      // Cleanup by removing the listener
-      setListeners(prevListeners => {
-        const updatedListeners = prevListeners.filter(listener => listener !== messageListener);
-        return updatedListeners;
-      });
-
       // Assuming `offMessage` function exists to remove listeners
       offMessage(messageListener);
     };
@@ -244,7 +272,40 @@ function Chat() {
     setIsGroup(isGroup);
     const savedMessages = messageHistory[contact] || [];
     setMessages(savedMessages);
+
+    if (isGroup) {
+      joinGroup(contact);  // Join the group when selected
+    }
   };
+
+  useEffect(() => {
+    if (isGroup) {
+      const currentUserJID = `${currentUser}@yourdomain.com`;  // Replace with actual domain
+      joinGroup(selectedContact, currentUser);
+  
+      const handleGroupMessage = (msg) => {
+        // Filter out messages sent by the current user
+        if (msg.from.split('/')[0] !== currentUserJID) {
+          const newMessage = {
+            content: msg.body,
+            sender: msg.from.split('@')[0],
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+  
+          setMessages((prevMessages) => [...prevMessages, newMessage]);
+        }
+      };
+  
+      // Attach the group message listener
+      listenForGroupMessages(handleGroupMessage);
+  
+      // Cleanup function to remove the listener when the component unmounts or dependencies change
+      return () => {
+        offMessage(handleGroupMessage);
+        console.log(`Cleaned up listener for ${selectedContact}`);
+      };
+    }
+  }, [selectedContact, isGroup]);
 
   const handlePresenceChange = async (event) => {
     const newPresence = event.target.value;
@@ -326,20 +387,17 @@ function Chat() {
     setInvitations(invitations.filter(i => i !== invite));
   };
 
-  useEffect(() => {
-    listenForGroupInvitations((invite) => {
-      setGroupInvitations((prevInvites) => [...prevInvites, invite]);
-    });
-  }, []);
-  
+
   const handleAcceptGroupInvite = (invite) => {
     acceptGroupInvitation(invite.groupName);
     setGroupInvitations(groupInvitations.filter(i => i !== invite));
+    processedInvitations.delete(invite.groupName);
   };
   
   const handleRejectGroupInvite = (invite) => {
     rejectGroupInvitation(invite.groupName);
     setGroupInvitations(groupInvitations.filter(i => i !== invite));
+    processedInvitations.delete(invite.groupName);
   };
   
   function handleKeyDown(event) {
@@ -393,7 +451,7 @@ function Chat() {
                 <span className="contact-name">{contact.name.split('@')[0] || contact.jid}</span>
                 <span className="contact-status">{contact.status}</span>
                 {contact.statusMessage && (
-                  <span className="contact-status-message">.Status: {contact.statusMessage}</span> // Muestra el mensaje de presencia
+                  <span className="contact-status-message">Status: {contact.statusMessage}</span> // Muestra el mensaje de presencia
                 )}
               </div>
             </li>

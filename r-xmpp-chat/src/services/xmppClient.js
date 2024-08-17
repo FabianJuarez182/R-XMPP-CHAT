@@ -7,6 +7,8 @@ let currentUser = null;
 let currentPresence = 'Available';
 let currentPresenceStatus = 'online';
 let messageListeners = [];
+let processedInvitations = new Set(); // Set to track processed invitations
+
 
 let reconnecting = false;
 
@@ -306,21 +308,61 @@ export async function joinGroup(groupJID) {
   }
 }
 
-export async function sendGroupMessage(to, body) {
+export async function joinGroupChat(roomJID, nickname) {
   if (!isOnline) {
-    throw new Error("No se puede enviar mensaje al grupo: no estás online.");
+    throw new Error("Cannot join group: not online.");
   }
 
   try {
-    const message = xml(
-      "message",
-      { to, type: "groupchat" },
-      xml("body", {}, body)
+    const presenceStanza = xml(
+      'presence',
+      { to: `${roomJID}/${nickname}` },
+      xml('x', { xmlns: 'http://jabber.org/protocol/muc' })
     );
-    await xmpp.send(message);
-    console.log(`Mensaje enviado al grupo ${to}: ${body}`);
+    await xmpp.send(presenceStanza);
+    console.log(`Joined group: ${roomJID} as ${nickname}`);
   } catch (error) {
-    console.error('Error al enviar el mensaje al grupo:', error);
+    console.error('Error joining group:', error);
+    throw error;
+  }
+}
+
+export function listenForGroupMessages(callback) {
+  if (xmpp) {
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('message') && stanza.attrs.type === 'groupchat') {
+        const from = stanza.attrs.from;
+        const body = stanza.getChildText('body');
+
+        if (body) {
+          callback({ from, body });
+        }
+      } else if (stanza.is('presence')) {
+        console.log(`Presence stanza received: ${stanza.toString()}`);
+      } else if (stanza.is('error')) {
+        console.log(`Error stanza received: ${stanza.toString()}`);
+      }
+    });
+  } else {
+    console.error('XMPP client is not connected');
+  }
+}
+
+
+
+export async function sendGroupMessage(roomJID, message) {
+  if (!isOnline) {
+    throw new Error("No se puede enviar el mensaje: no estás online.");
+  }
+
+  try {
+    const messageStanza = xml('message', { to: roomJID, type: 'groupchat' },
+      xml('body', {}, message)
+    );
+    await xmpp.send(messageStanza);
+    console.log(`Mensaje enviado al grupo ${roomJID}: ${message}`);
+  } catch (error) {
+    console.error('Error al enviar mensaje al grupo:', error);
     throw error;
   }
 }
@@ -509,7 +551,12 @@ export function listenForContactInvitations(callback) {
     xmpp.on('stanza', (stanza) => {
       if (stanza.is('presence') && stanza.attrs.type === 'subscribe') {
         const from = stanza.attrs.from;
-        callback({ from });
+
+        // Check if this invitation has already been processed
+        if (!processedInvitations.has(from)) {
+          processedInvitations.add(from); // Mark this invitation as processed
+          callback({ from });
+        }
       }
     });
   } else {
@@ -538,9 +585,35 @@ export async function rejectContactInvitation(from) {
   }
 
   try {
-    const presenceStanza = xml('presence', { to: from, type: 'unsubscribed' });
-    await xmpp.send(presenceStanza);
-    console.log(`Rechazada la invitación de ${from}`);
+    // First, send "unsubscribed" to prevent sharing your status
+    const unsubscribedStanza = xml('presence', { to: from, type: 'unsubscribed' });
+    await xmpp.send(unsubscribedStanza);
+
+    // Then, send "unsubscribe" to explicitly reject the subscription request
+    const unsubscribeStanza = xml('presence', { to: from, type: 'unsubscribe' });
+    await xmpp.send(unsubscribeStanza);
+
+    // Send IQ stanza to remove the contact from the roster
+    const removeContactStanza = xml(
+      'iq',
+      { type: 'set', id: 'remove1' },
+      xml('query', { xmlns: 'jabber:iq:roster' },
+        xml('item', { jid: from, subscription: 'remove' })
+      )
+    );
+
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('iq') && stanza.attrs.id === 'remove1') {
+        console.log('Response from server:', stanza.toString());
+        if (stanza.attrs.type === 'result') {
+          console.log(`Contacto ${from} eliminado exitosamente de la lista de contactos.`);
+        } else if (stanza.attrs.type === 'error') {
+          console.error('Error al intentar eliminar el contacto:', stanza.getChildText('error'));
+        }
+      }
+    });
+
+    await xmpp.send(removeContactStanza);
   } catch (error) {
     console.error('Error al rechazar la invitación:', error);
     throw error;
