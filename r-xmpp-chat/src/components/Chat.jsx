@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   initializeXMPP,
   sendMessage,
+  offMessage,
   sendGroupMessage,
   getContacts,
   onMessage,
@@ -41,6 +42,9 @@ function Chat() {
   const [newMessages, setNewMessages] = useState([]);
   const [groupInvitations, setGroupInvitations] = useState([]); // Estado para las invitaciones a grupos
   const [isGroup, setIsGroup] = useState(false); // Para saber si el chat actual es de un grupo
+  const [messageHistory, setMessageHistory] = useState({}); // Historial de mensajes por contacto
+  const [listeners, setListeners] = useState([]);
+
 
     // Estado para el modal
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -193,43 +197,40 @@ function Chat() {
     }
   }, [contacts]);
   
+
   useEffect(() => {
-    const savedMessages = JSON.parse(localStorage.getItem('messages')) || {};
-    if (selectedContact && savedMessages[selectedContact]) {
-      setMessages(savedMessages[selectedContact]);
-    }
+    const messageListener = (msg) => {
+      const sender = msg.from.split('/')[0] === currentUser ? 'me' : msg.from.split('@')[0];  // Extracts the username from the JID
+      const newMessage = {
+        content: msg.body || 'No content',
+        sender: sender,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+  
+      setMessages(prevMessages => {
+        const updatedMessages = [...prevMessages, newMessage];
+        localStorage.setItem('messages', JSON.stringify(updatedMessages));
+        return updatedMessages;
+      });
+  
+      setNewMessages(prevMessages => [...prevMessages, newMessage]);
+    };
+  
+    // Attach the message listener
+    onMessage(messageListener);
+  
+    return () => {
+      // Cleanup by removing the listener
+      setListeners(prevListeners => {
+        const updatedListeners = prevListeners.filter(listener => listener !== messageListener);
+        return updatedListeners;
+      });
 
-    onMessage((msg) => {
-      const newMessages = [
-        ...messages,
-        {
-          content: msg.body,
-          sender: msg.from === selectedContact ? 'them' : 'me',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ];
-      setMessages(newMessages);
-
-      // Guardar mensajes en localStorage
-      const updatedMessages = { ...savedMessages, [selectedContact]: newMessages };
-      localStorage.setItem('messages', JSON.stringify(updatedMessages));
-    });
-  }, [selectedContact, messages]);
-
-useEffect(() => {
-    onMessage((msg) => {
-        const newMessage = {
-            content: msg.body,
-            sender: msg.from === selectedContact ? 'them' : 'me',
-            time: msg.time,
-        };
-        setMessages(prevMessages => {
-            const updatedMessages = [...prevMessages, newMessage];
-            localStorage.setItem('messages', JSON.stringify(updatedMessages)); // Guarda los mensajes en localStorage
-            return updatedMessages;
-        });
-    });
-}, [selectedContact]); // Solo depende de selectedContact
+      // Assuming `offMessage` function exists to remove listeners
+      offMessage(messageListener);
+    };
+  }, [selectedContact]);
+  
 
   useEffect(() => {
     const savedSelectedContact = localStorage.getItem('selectedContact');
@@ -241,12 +242,8 @@ useEffect(() => {
   const handleContactClick = (contact, isGroup = false) => {
     setSelectedContact(contact);
     setIsGroup(isGroup);
-    const savedMessages = JSON.parse(localStorage.getItem('messages')) || {};
-    if (savedMessages[contact]) {
-      setMessages(savedMessages[contact]);
-    } else {
-      setMessages([]);
-    }
+    const savedMessages = messageHistory[contact] || [];
+    setMessages(savedMessages);
   };
 
   const handlePresenceChange = async (event) => {
@@ -269,11 +266,11 @@ useEffect(() => {
       const newMessages = [...messages, newMessage];
       setMessages(newMessages);
 
-      // Guardar mensajes en localStorage
-      const savedMessages = JSON.parse(localStorage.getItem('messages')) || {};
-      const updatedMessages = { ...savedMessages, [selectedContact]: newMessages };
-      localStorage.setItem('messages', JSON.stringify(updatedMessages));
-
+      setMessageHistory(prevHistory => {
+        const updatedHistory = { ...prevHistory, [selectedContact]: newMessages };
+        localStorage.setItem('messageHistory', JSON.stringify(updatedHistory));
+        return updatedHistory;
+      });
       try {
         if (isGroup) {
           await sendGroupMessage(selectedContact, message);
@@ -281,7 +278,6 @@ useEffect(() => {
           await sendMessage(selectedContact, message);
         }
         setMessage('');
-        localStorage.setItem('messages', JSON.stringify([...messages, newMessage]));
       } catch (error) {
         console.error('Error al enviar el mensaje:', error);
       }
@@ -346,12 +342,11 @@ useEffect(() => {
     setGroupInvitations(groupInvitations.filter(i => i !== invite));
   };
   
-
-  useEffect(() => {
-    onMessage((msg) => {
-      setNewMessages((prevMessages) => [...prevMessages, msg]);
-    });
-  }, []);
+  function handleKeyDown(event) {
+    if (event.key === 'Enter') {
+      handleSendMessage();
+    }
+  }
 
   const handleCloseNotification = () => {
     setNewMessages([]);
@@ -440,6 +435,7 @@ useEffect(() => {
                 placeholder="Escribe un mensaje"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => handleKeyDown(e)}
                 className="input"
               />
               <button onClick={handleSendMessage} className="button">Enviar</button>

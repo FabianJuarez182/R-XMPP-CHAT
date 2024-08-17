@@ -63,6 +63,25 @@ function initializeXMPP(username, password) {
       }
     });
 
+      xmpp.on('stanza', (stanza) => {
+        console.log('Stanza received:', stanza.toString());
+
+        if (stanza.is('message') && stanza.attrs.type === 'chat') {
+          const from = stanza.attrs.from;
+          const body = stanza.getChildText('body');
+
+          console.log('Message received:', body);
+
+          if (body) {
+            const message = {
+              from,
+              body,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+            messageListeners.forEach(listener => listener(message));
+          }
+        }
+      });
     xmpp.start().catch((err) => {
       console.error('Failed to connect:', err);
       reject(new Error('Failed to connect: ' + err.message));
@@ -157,25 +176,17 @@ export async function addContact(contactJID, message, sharePresence) {
   }
 }
 
-function handleStanza(stanza) {
-  if (stanza.is('message') && stanza.attrs.type === 'chat') {
-    const from = stanza.attrs.from;
-    const body = stanza.getChildText('body');
+export function offMessage(listener) {
+  messageListeners = messageListeners.filter(l => l !== listener);
+}
 
-    if (body) {
-      const message = {
-        from,
-        body,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      messageListeners.forEach(listener => listener(message));
-    }
+
+export function onMessage(listener) {
+  if (!messageListeners.includes(listener)) {
+    messageListeners.push(listener);
   }
 }
 
-export function onMessage(listener) {
-  messageListeners.push(listener);
-}
 
 export async function getContacts() {
   return new Promise((resolve, reject) => {

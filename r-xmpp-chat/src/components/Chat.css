@@ -47,7 +47,8 @@
     padding: 10px;
     border-radius: 10px;
     font-size: 14px;
-    position: relative;
+    display: flex;
+    flex-direction: column;
   }
   
   .message.sent {
@@ -62,12 +63,16 @@
     color: #000;
   }
   
+  .message-content {
+    display: block;
+    margin-bottom: 5px; /* Adds space between the message text and the time */
+  }
+  
   .message-time {
     font-size: 12px;
-    position: absolute;
-    bottom: 2px;
-    right: 5px;
+    text-align: right; /* Aligns the time to the right */
     color: #999;
+    margin-top: auto; /* Pushes the time to the bottom of the container */
   }
   
   .input-area {
