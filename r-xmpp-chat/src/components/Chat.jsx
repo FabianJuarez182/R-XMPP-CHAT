@@ -138,35 +138,6 @@ function Chat() {
     }
   }, []);
 
-  useEffect(() => {
-    const messageListener = (msg) => {
-      const senderJID = msg.from.split('/')[0];
-      const currentUserJID = `${currentUser}@yourdomain.com`;  // Ajusta el dominio según sea necesario
-  
-      if (senderJID !== currentUserJID && msg.body.trim() !== '') {  // Verifica que el cuerpo del mensaje no esté vacío
-        const newMessage = {
-          content: msg.body || 'No content',
-          sender: senderJID.split('@')[0],
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-  
-        setMessages(prevMessages => {
-          const updatedMessages = [...prevMessages, newMessage];
-          localStorage.setItem('messages', JSON.stringify(updatedMessages));
-          return updatedMessages;
-        });
-  
-        setNewMessages(prevMessages => [...prevMessages, newMessage]);
-      }
-    };
-  
-    onMessage(messageListener);
-  
-    return () => {
-      offMessage(messageListener);
-    };
-  }, [selectedContact, isGroup]);
-  
 
   const loadContacts = async () => {
     try {
