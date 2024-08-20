@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import './SignUp.css'; // Reutilizar el mismo archivo CSS que Login
-import { signUp } from '../services/xmppClient'; // Asegúrate de que la ruta sea correcta
+import './SignUp.css';
+import { signUp, simpleXMPPLogin, logout } from '../services/xmppClient';
 import { useNavigate } from 'react-router-dom'; // Para redirigir después del registro
 import logo from '../assets/FabsChat-Logo.png';
 
@@ -11,19 +11,32 @@ function SignUp() {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  const handleSignUp = async () => {
-    if (username && fullName && email && password) {
-      try {
-        await signUp(username, fullName, email, password);
-        alert('Registro exitoso. Ahora puedes iniciar sesión.');
-        navigate('/');
-      } catch (error) {
-        alert('Error durante el registro: ' + error.message);
-      }
-    } else {
-      alert('Por favor, completa todos los campos.');
+const handleSignUp = async () => {
+  if (username && fullName && email && password) {
+    try {
+      console.log('Iniciando conexión con XMPP...');
+      await simpleXMPPLogin('jua21440', 'Redes-2024');
+      console.log('Sesión iniciada con jua21440');
+
+      console.log('Intentando registrar un nuevo usuario...');
+      await signUp(username, fullName, email, password);
+
+      console.log('Cuenta creada exitosamente:', username);
+      alert('Registro exitoso. Ahora puedes iniciar sesión.');
+      
+      console.log('Cerrando sesión...');
+      await logout();
+
+      navigate('/');
+    } catch (error) {
+      console.error('Error durante el registro:', error);
+      alert('Error durante el registro: ' + error.message);
     }
-  };
+  } else {
+    alert('Por favor, completa todos los campos.');
+  }
+};
+
   const handleBack = () => {
     navigate('/'); // Redirige a la página de Login
   };

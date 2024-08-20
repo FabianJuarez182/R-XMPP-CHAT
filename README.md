@@ -25,7 +25,7 @@ yarn dev
 
 ## functionalities implemented
 ### Account management
-* Register a new account on the server (not fully implemented)
+* Register a new account on the server
 * Log in with an account
 * Log out of an account
 * Delete the account from the server
@@ -33,8 +33,8 @@ yarn dev
 ### Communication
 * Show all contacts and their status
 * Add a user to contacts
-* Show contact details of a user  
-* 1 to 1 communication with any user/contact 
+* Show contact details of a user
+* 1 to 1 communication with any user/contact
 * Participate in group conversations (bug recibed message but implemented)
 * Define presence message
 * Send/receive notifications

@@ -85,7 +85,7 @@ function initializeXMPP(username, password) {
         }
       }
     });
-    xmpp.start().catch((err) => {
+    xmpp.start({timeout: 60000, }).catch((err) => {
       console.error('Failed to connect:', err);
       reject(new Error('Failed to connect: ' + err.message));
     });
@@ -506,61 +506,88 @@ export async function setPresence(presence, message) {
   await sendPresence(presence, message);
 }
 
-export async function signUp(username, fullName, email, password) {
+export function simpleXMPPLogin(username, password) {
   return new Promise((resolve, reject) => {
+    if (!username || !password) {
+      reject(new Error('Se requiere un nombre de usuario y una contraseña.'));
+      return;
+    }
+
     xmpp = client({
-      service: "ws://alumchat.lol:7070/ws/",
-      domain: "alumchat.lol",
-      resource: "example",
-      credentials: async (auth) => {
-        return { username, password };
-      },
+      service: "ws://alumchat.lol:7070/ws/", // Dirección del servidor XMPP
+      domain: "alumchat.lol", // Dominio del servidor
+      resource: "example", // Recurso arbitrario
+      username: username, // Nombre de usuario proporcionado
+      password: password, // Contraseña proporcionada
     });
 
-    debug(xmpp, true);
-
-    xmpp.on('status', async (status) => {
-      if (status === 'online') {
-        try {
-          const iq = xml(
-            'iq',
-            { type: 'set', id: 'reg1' },
-            xml('query', { xmlns: 'jabber:iq:register' }, [
-              xml('username', {}, username),
-              xml('password', {}, password),
-              xml('email', {}, email),
-              xml('name', {}, fullName),
-            ])
-          );
-
-          const response = await xmpp.send(iq);
-          resolve(response);
-        } catch (err) {
-          console.error('Error durante el registro:', err);
-          reject(new Error('Error durante el registro: ' + err.message));
-        }
-      } else {
-        console.log(`Estado actual de la conexión: ${status}`);
-      }
+    // Cuando se conecta correctamente
+    xmpp.on("online", (address) => {
+      console.log(`Conectado como ${address.toString()}`);
+      isOnline = true; // Actualizar el estado de conexión
+      resolve(); // Resuelve la promesa cuando la conexión es exitosa
     });
 
+    // Manejo de errores de conexión
     xmpp.on("error", (err) => {
       console.error('Error de conexión:', err);
-      reject(new Error('Error de conexión: ' + err.message));
+      isOnline = false; // Actualizar el estado de conexión
+      reject(new Error('Error al conectar: ' + err.message));
     });
 
-    xmpp.on("offline", () => {
-      isOnline = false;
-    });
-
-    xmpp.start({
-      timeout: 60000,
-    }).catch((err) => {
-      console.error('No se pudo conectar:', err);
-      reject(new Error('Failed to connect: ' + err.message));
+    // Inicia la conexión XMPP
+    xmpp.start().catch((err) => {
+      console.error('Falló la conexión:', err);
+      isOnline = false; // Actualizar el estado de conexión
+      reject(new Error('Falló la conexión: ' + err.message));
     });
   });
 }
+
+export async function signUp(username, fullName, email, password) {
+  return new Promise((resolve, reject) => {
+    if (!isOnline) {
+      return reject(new Error('No estás conectado al servidor XMPP.'));
+    }
+    if (!xmpp) {
+      return reject(new Error('El cliente XMPP no está inicializado.'));
+    }
+
+    console.log("empezando registro");
+
+    const iq = xml(
+      'iq',
+      { type: 'set', id: 'reg1' },
+      xml('query', { xmlns: 'jabber:iq:register' }, [
+        xml('username', {}, username),
+        xml('password', {}, password),
+        xml('email', {}, email),
+        xml('name', {}, fullName),
+      ])
+    );
+
+    xmpp.on('stanza', (stanza) => {
+      if (stanza.is('iq') && stanza.attrs.type === 'result' && stanza.attrs.id === 'reg1') {
+        console.log('Registro exitoso:', stanza.toString());
+        resolve(); // Resuelve la promesa cuando el registro es exitoso
+      } else if (stanza.is('iq') && stanza.attrs.type === 'error' && stanza.attrs.id === 'reg1') {
+        const error = stanza.getChild('error');
+        const conflict = error && error.getChild('conflict', 'urn:ietf:params:xml:ns:xmpp-stanzas');
+        if (conflict) {
+          reject(new Error('La cuenta ya existe. Por favor, elige un nombre de usuario diferente.'));
+        } else {
+          reject(new Error('Ocurrió un error durante el registro. Inténtalo de nuevo.'));
+        }
+      }
+    });
+
+    xmpp.send(iq).catch((err) => {
+      console.error('Error al enviar IQ:', err);
+      reject(err);
+    });
+  });
+}
+
 
 export function listenForContactInvitations(callback) {
   if (xmpp) {
