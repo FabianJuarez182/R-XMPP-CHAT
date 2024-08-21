@@ -19,7 +19,7 @@ yarn
 ## :card_file_box: Use
 As first point we must execute the development server:
 ```
-yarn dev
+yarn run dev
 ```
 > Next, a window will open in your browser on the link http://localhost:5173. If not, open your browser at **http://localhost:5173** to view the application.
 

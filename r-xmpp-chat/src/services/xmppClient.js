@@ -179,6 +179,47 @@ export async function addContact(contactJID, message, sharePresence) {
   }
 }
 
+export async function deleteContact(contactJID) {
+  if (!isOnline) {
+    throw new Error("No se puede eliminar el contacto: no estás online.");
+  }
+
+  try {
+    // Enviar una solicitud IQ para eliminar el contacto del roster
+    const iq = xml(
+      'iq',
+      { type: 'set', id: 'remove1' },
+      xml('query', { xmlns: 'jabber:iq:roster' },
+        xml('item', { jid: contactJID, subscription: 'remove' })
+      )
+    );
+
+    return new Promise((resolve, reject) => {
+      xmpp.on('stanza', (stanza) => {
+        if (stanza.is('iq') && stanza.attrs.id === 'remove1') {
+          if (stanza.attrs.type === 'result') {
+            console.log(`Contacto ${contactJID} eliminado exitosamente.`);
+            resolve(); // Resolviendo la promesa en caso de éxito
+          } else if (stanza.attrs.type === 'error') {
+            console.error('Error al intentar eliminar el contacto:', stanza.getChildText('error'));
+            reject(new Error('Failed to remove contact.'));
+          }
+        }
+      });
+
+      xmpp.send(iq).catch((err) => {
+        console.error('Error al enviar la solicitud IQ:', err);
+        reject(err);
+      });
+    });
+  } catch (error) {
+    console.error('Error al eliminar el contacto:', error);
+    throw error;
+  }
+}
+
+
+
 export function offMessage(listener) {
   messageListeners = messageListeners.filter(l => l !== listener);
 }
@@ -282,7 +323,7 @@ export async function getGroups() {
         const groups = items.map(item => ({
           jid: item.attrs.jid,
           name: item.attrs.name || item.attrs.jid
-        }));
+        }))
         resolve(groups);
       }
     });

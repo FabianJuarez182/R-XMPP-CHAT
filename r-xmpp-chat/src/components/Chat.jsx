@@ -11,6 +11,7 @@ import {
   setPresence,
   logout,
   deleteUser,
+  deleteContact,
   addContact,
   getCurrentPresenceStatus,
   listenForPresenceUpdates,
@@ -46,6 +47,8 @@ function Chat() {
   const [messageHistory, setMessageHistory] = useState({}); // Historial de mensajes por contacto
   const [listeners, setListeners] = useState([]);
   const processedInvitations = new Set();
+  const [isModalO, setIsModalO] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState(null);
 
 
     // Estado para el modal
@@ -206,30 +209,43 @@ function Chat() {
 
   useEffect(() => {
     const messageListener = (msg) => {
-      const sender = msg.from.split('/')[0] === currentUser ? 'me' : msg.from.split('@')[0];  // Extracts the username from the JID
+      const from = msg.from;
+      let sender;
+      if (isGroup) {
+        // Si es un grupo, extrae el nombre del `resource`
+        if (from.includes('/')) {
+          sender = from.split('/')[1];  // `resource` contiene el nombre del usuario que envió el mensaje
+        } else {
+          sender = 'Desconocido'; // Fallback si no hay `resource` en el JID
+        }
+      } else {
+        // Si no es un grupo, usa el `username` del JID
+        sender = from.split('@')[0];
+      }
+      console.log("EnviadoPor:",sender)
       const newMessage = {
         content: msg.body || 'No content',
         sender: sender,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-  
+    
       setMessages(prevMessages => {
         const updatedMessages = [...prevMessages, newMessage];
         localStorage.setItem('messages', JSON.stringify(updatedMessages));
         return updatedMessages;
       });
-  
+    
       setNewMessages(prevMessages => [...prevMessages, newMessage]);
     };
-  
+    
     // Attach the message listener
     onMessage(messageListener);
-  
+    
     return () => {
       // Assuming `offMessage` function exists to remove listeners
       offMessage(messageListener);
     };
-  }, [selectedContact]);
+  }, [selectedContact, isGroup]);
   
 
   useEffect(() => {
@@ -256,12 +272,12 @@ function Chat() {
       joinGroup(selectedContact, currentUser);
   
       const handleGroupMessage = (msg) => {
-        const senderJID = msg.from.split('/')[0];
+        const senderJID = msg.from.split('/')[1];
         // Filter out messages sent by the current user
         if (msg.body.trim() !== '' && senderJID !== currentUserJID) {
           const newMessage = {
             content: msg.body,
-            sender: senderJID.split('@')[0],
+            sender: senderJID,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           };
   
@@ -386,6 +402,29 @@ function Chat() {
     setNewMessages([]);
   };
 
+  const handleDeleteClick = (contact) => {
+    setContactToDelete(contact);
+    setIsModalO(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (contactToDelete) {
+      try {
+        await deleteContact(contactToDelete.jid);
+        setContacts(contacts.filter(c => c.jid !== contactToDelete.jid));
+        setIsModalO(false);
+        setContactToDelete(null);
+      } catch (error) {
+        console.error('Error al eliminar el contacto:', error);
+      }
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setIsModalO(false);
+    setContactToDelete(null);
+  };
+
   return (
     <div className="chat-container">
       <div className="sidebar">
@@ -430,6 +469,9 @@ function Chat() {
                   <span className="contact-status-message">Status: {contact.statusMessage}</span> // Muestra el mensaje de presencia
                 )}
               </div>
+              <button className="delete-contact-button" onClick={() => handleDeleteClick(contact)}>
+                X
+              </button>
             </li>
           ))}
         </ul>
@@ -449,6 +491,23 @@ function Chat() {
         </ul>
         <button className="add-contact-button" onClick={openModal}>Agregar Contacto</button>
         <button className="delete-account-button" onClick={handleDeleteAccount}>Eliminar Cuenta</button>
+        {/* Modal de confirmación */}
+      {isModalO && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>Confirmar eliminación</h2>
+            <p>¿Estás seguro de que deseas eliminar el contacto {contactToDelete?.name.split('@')[0] || contactToDelete?.jid}?</p>
+            <div className="modal-buttons">
+              <button onClick={handleConfirmDelete} className="modal-delete-button">
+                Eliminar
+              </button>
+              <button onClick={handleCancelDelete} className="modal-cancel-button">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
 
       <div className="chat-area">
@@ -458,7 +517,7 @@ function Chat() {
             <div className="message-area">
               {messages.map((msg, index) => (
                 <div key={index} className={`message ${msg.sender === 'me' ? 'sent' : 'received'}`}>
-                  {msg.content}
+                  <strong>{msg.sender}</strong>{msg.content}
                   <span className="message-time">{msg.time}</span>
                 </div>
               ))}
