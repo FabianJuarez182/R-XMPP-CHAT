@@ -38,7 +38,7 @@ yarn run dev
 - Add a user to contacts
 - Show contact details of a user
 - 1 to 1 communication with any user/contact
-- Participate in group conversations (bug recibed 2 message for one but implemented)
+- Participate in group conversations
 - Define presence message
 - Send/receive notifications
 - Send/receive files (not implemented)

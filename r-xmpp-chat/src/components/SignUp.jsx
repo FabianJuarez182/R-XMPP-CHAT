@@ -5,40 +5,46 @@ import { useNavigate } from 'react-router-dom'; // Para redirigir después del r
 import logo from '../assets/FabsChat-Logo.png';
 
 function SignUp() {
+  // State to manage the username input
   const [username, setUsername] = useState('');
+  // State to manage the full name input
   const [fullName, setFullName] = useState('');
+  // State to manage the email input
   const [email, setEmail] = useState('');
+  // State to manage the password input
   const [password, setPassword] = useState('');
+  // Hook to enable navigation to different routes
   const navigate = useNavigate();
 
+// Function to handle the sign-up process
 const handleSignUp = async () => {
+  // Check if all required fields are filled
   if (username && fullName && email && password) {
     try {
-      console.log('Iniciando conexión con XMPP...');
       await simpleXMPPLogin('jua21440', 'Redes-2024');
-      console.log('Sesión iniciada con jua21440');
 
-      console.log('Intentando registrar un nuevo usuario...');
+      // Register the new user with the provided details
       await signUp(username, fullName, email, password);
 
-      console.log('Cuenta creada exitosamente:', username);
       alert('Registro exitoso. Ahora puedes iniciar sesión.');
-      
-      console.log('Cerrando sesión...');
+
       await logout();
 
       navigate('/');
     } catch (error) {
+      // Handle any errors during the sign-up process
       console.error('Error durante el registro:', error);
       alert('Error durante el registro: ' + error.message);
     }
   } else {
+    // Alert the user if any fields are missing
     alert('Por favor, completa todos los campos.');
   }
 };
 
+  // Function to handle navigation back to the login page
   const handleBack = () => {
-    navigate('/'); // Redirige a la página de Login
+    navigate('/'); // Redirect to the login page
   };
 
   return (

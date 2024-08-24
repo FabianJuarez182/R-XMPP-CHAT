@@ -154,6 +154,7 @@
     overflow-y: auto;
     list-style-type: none;
     padding: 0;
+    max-height: 350px;
   }
 
   .group-item {
@@ -472,4 +473,10 @@
 
 .modal-cancel-button:hover {
   background-color: darkgray;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
 }

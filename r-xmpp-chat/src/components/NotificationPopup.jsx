@@ -2,14 +2,18 @@ import React, { useState, useEffect } from 'react';
 import './NotificationPopup.css';
 
 function NotificationPopup({ invitations, onAccept, onReject }) {
+  // State to manage the visibility of the popup
   const [isVisible, setIsVisible] = useState(false);
 
+  // useEffect hook to toggle visibility based on the number of invitations
   useEffect(() => {
+    // If there are invitations, make the popup visible
     if (invitations.length > 0) {
       setIsVisible(true);
     }
-  }, [invitations]);
+  }, [invitations]); // Dependency array includes invitations to trigger the effect when they change
 
+  // Function to handle closing the popup
   const handleClose = () => {
     setIsVisible(false);
   };
